@@ -60,18 +60,20 @@ struct engine {
 static int engine_init_display(struct engine* engine) {
     // Initialize OpenGL ES and EGL
 
-    /*
-     * Here specify the attributes of the desired configuration.
-     * Below, we select an EGLConfig with at least 8 bits per color
-     * component compatible with on-screen windows
-     */
-    const EGLint attribs[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-            EGL_BLUE_SIZE, 8,
-            EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
-            EGL_NONE
+    const EGLint configAttribs[] = {
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
+        EGL_BLUE_SIZE,       8,
+        EGL_GREEN_SIZE,      8,
+        EGL_RED_SIZE,        8,
+        EGL_ALPHA_SIZE,      8,
+        EGL_STENCIL_SIZE,    8,
+        EGL_NONE
     };
+
+    const EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+    const EGLint surfaceAttribs[] = {EGL_RENDER_BUFFER, EGL_BACK_BUFFER, EGL_NONE};
+
     EGLint w, h, dummy, format;
     EGLint numConfigs;
     EGLConfig config;
@@ -80,12 +82,12 @@ static int engine_init_display(struct engine* engine) {
 
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 
-    eglInitialize(display, 0, 0);
+    eglInitialize(display, NULL, NULL);
 
     /* Here, the application chooses the configuration it desires. In this
      * sample, we have a very simplified selection process, where we pick
      * the first EGLConfig that matches our criteria */
-    eglChooseConfig(display, attribs, &config, 1, &numConfigs);
+    eglChooseConfig(display, configAttribs, &config, 1, &numConfigs);
 
     /* EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is
      * guaranteed to be accepted by ANativeWindow_setBuffersGeometry().
@@ -95,8 +97,8 @@ static int engine_init_display(struct engine* engine) {
 
     ANativeWindow_setBuffersGeometry(engine->app->window, 0, 0, format);
 
-    surface = eglCreateWindowSurface(display, config, engine->app->window, NULL);
-    context = eglCreateContext(display, config, NULL, NULL);
+    surface = eglCreateWindowSurface(display, config, engine->app->window, surfaceAttribs);
+    context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
 
     if (eglMakeCurrent(display, surface, surface, context) == EGL_FALSE) {
         LOGW("Unable to eglMakeCurrent");
@@ -106,19 +108,19 @@ static int engine_init_display(struct engine* engine) {
     eglQuerySurface(display, surface, EGL_WIDTH, &w);
     eglQuerySurface(display, surface, EGL_HEIGHT, &h);
 
+    glViewport(0, 0, w, h);
+
     engine->display = display;
     engine->context = context;
     engine->surface = surface;
-    engine->width = w;
-    engine->height = h;
-    engine->state.angle = 0;
+    engine->width   = w;
+    engine->height  = h;
 
     // Initialize GL state.
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
     glEnable(GL_CULL_FACE);
     glShadeModel(GL_SMOOTH);
     glDisable(GL_DEPTH_TEST);
-
 
     // Initialize Skia OpenGL ES
 
@@ -141,9 +143,7 @@ static int engine_init_display(struct engine* engine) {
     GR_GL_GetIntegerv(fInterface, GR_GL_FRAMEBUFFER_BINDING, &buffer);
     desc.fRenderTargetHandle = buffer;
 
-    LOGI("Why crash here?");
     GrRenderTarget* fRenderTarget = fContext->wrapBackendRenderTarget(desc);
-
     fContext->setRenderTarget(fRenderTarget);
 
     SkAutoTUnref<SkDevice> device(new SkGpuDevice(fContext, fRenderTarget));
@@ -161,17 +161,7 @@ static void engine_draw_frame(struct engine* engine) {
         return;
     }
 
-/*
-    // Just fill the screen with a color.
-    glClearColor(((float)engine->state.x)/engine->width, engine->state.angle,
-            ((float)engine->state.y)/engine->height, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    eglSwapBuffers(engine->display, engine->surface);
-*/
-
-    // FIXME
-    long elapsedTime = 10;
+    long elapsedTime = clock() / (CLOCKS_PER_SEC / 1000);
 
     canvas->drawColor(SK_ColorWHITE);
 
@@ -204,6 +194,7 @@ static void engine_draw_frame(struct engine* engine) {
     }
 
     fContext->flush();
+    eglSwapBuffers(engine->display, engine->surface);
 }
 
 /**
@@ -232,7 +223,6 @@ static void engine_term_display(struct engine* engine) {
 static int32_t engine_handle_input(struct android_app* app, AInputEvent* event) {
     struct engine* engine = (struct engine*)app->userData;
     if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
-        engine->animating = 1;
         engine->state.x = AMotionEvent_getX(event, 0);
         engine->state.y = AMotionEvent_getY(event, 0);
         return 1;
@@ -304,20 +294,13 @@ void android_main(struct android_app* state) {
     state->onInputEvent = engine_handle_input;
     engine.app = state;
 
-    // Prepare to monitor accelerometer
-    engine.sensorManager = ASensorManager_getInstance();
-    engine.accelerometerSensor = ASensorManager_getDefaultSensor(engine.sensorManager,
-            ASENSOR_TYPE_ACCELEROMETER);
-    engine.sensorEventQueue = ASensorManager_createEventQueue(engine.sensorManager,
-            state->looper, LOOPER_ID_USER, NULL, NULL);
-
     if (state->savedState != NULL) {
         // We are starting with a previous saved state; restore from it.
         engine.state = *(struct saved_state*)state->savedState;
     }
 
     // loop waiting for stuff to do.
-
+    engine.animating = 1;
     while (1) {
         // Read all pending events.
         int ident;
@@ -333,19 +316,6 @@ void android_main(struct android_app* state) {
             // Process this event.
             if (source != NULL) {
                 source->process(state, source);
-            }
-
-            // If a sensor has data, process it now.
-            if (ident == LOOPER_ID_USER) {
-                if (engine.accelerometerSensor != NULL) {
-                    ASensorEvent event;
-                    while (ASensorEventQueue_getEvents(engine.sensorEventQueue,
-                            &event, 1) > 0) {
-                        LOGI("accelerometer: x=%f y=%f z=%f",
-                                event.acceleration.x, event.acceleration.y,
-                                event.acceleration.z);
-                    }
-                }
             }
 
             // Check if we are exiting.
