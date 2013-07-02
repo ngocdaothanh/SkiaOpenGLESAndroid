@@ -1,10 +1,6 @@
-#include <jni.h>
-#include <errno.h>
-
 #include <EGL/egl.h>
 #include <GLES/gl.h>
 
-#include <android/sensor.h>
 #include <android/log.h>
 #include <android_native_app_glue.h>
 
@@ -14,26 +10,14 @@
 #include <gl/GrGLDefines.h>
 #include <gl/GrGLUtil.h>
 
-#include "SkCanvas.h"
-#include "SkGraphics.h"
-#include "SkSurface.h"
-#include "SkString.h"
-#include "SkTime.h"
-
-GrContext* fContext;
-SkCanvas* canvas;
+#include <SkCanvas.h>
+#include <SkGraphics.h>
+#include <SkSurface.h>
+#include <SkString.h>
+#include <SkTime.h>
 
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "native-activity", __VA_ARGS__))
 #define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, "native-activity", __VA_ARGS__))
-
-/**
- * Our saved state data.
- */
-struct saved_state {
-    float angle;
-    int32_t x;
-    int32_t y;
-};
 
 /**
  * Shared state for our app.
@@ -41,17 +25,15 @@ struct saved_state {
 struct engine {
     struct android_app* app;
 
-    ASensorManager* sensorManager;
-    const ASensor* accelerometerSensor;
-    ASensorEventQueue* sensorEventQueue;
-
     int animating;
     EGLDisplay display;
     EGLSurface surface;
     EGLContext context;
     int32_t width;
     int32_t height;
-    struct saved_state state;
+
+    GrContext* skiaContext;
+    SkCanvas* skiaCanvas;
 };
 
 /**
@@ -108,6 +90,7 @@ static int engine_init_display(struct engine* engine) {
     eglQuerySurface(display, surface, EGL_WIDTH, &w);
     eglQuerySurface(display, surface, EGL_HEIGHT, &h);
 
+    LOGI("Canvas size: %d x %d", w, h);
     glViewport(0, 0, w, h);
 
     engine->display = display;
@@ -124,12 +107,10 @@ static int engine_init_display(struct engine* engine) {
 
     // Initialize Skia OpenGL ES
 
-    LOGI("Canvas size: %d x %d", w, h);
-
     SkGraphics::Init();
 
     const GrGLInterface* fInterface = GrGLCreateNativeInterface();
-    fContext = GrContext::Create(kOpenGL_GrBackend, (GrBackendContext) fInterface);
+    engine->skiaContext = GrContext::Create(kOpenGL_GrBackend, (GrBackendContext) fInterface);
 
     GrBackendRenderTargetDesc desc;
     desc.fWidth       = w;
@@ -140,14 +121,18 @@ static int engine_init_display(struct engine* engine) {
     desc.fStencilBits = 8;
 
     GrGLint buffer;
+    // Alternative: glGetIntegerv(GL_FRAMEBUFFER_BINDING, &buffer);
     GR_GL_GetIntegerv(fInterface, GR_GL_FRAMEBUFFER_BINDING, &buffer);
     desc.fRenderTargetHandle = buffer;
 
-    GrRenderTarget* fRenderTarget = fContext->wrapBackendRenderTarget(desc);
-    fContext->setRenderTarget(fRenderTarget);
+    GrRenderTarget* renderTarget = engine->skiaContext->wrapBackendRenderTarget(desc);
+    SkAutoTUnref<SkDevice> device(new SkGpuDevice(engine->skiaContext, renderTarget));
 
-    SkAutoTUnref<SkDevice> device(new SkGpuDevice(fContext, fRenderTarget));
-    canvas = new SkCanvas(device);
+    // Leaking fRenderTarget. Either wrap it in an SkAutoTUnref<> or unref it
+    // after creating the device.
+    SkSafeUnref(renderTarget);
+
+    engine->skiaCanvas = new SkCanvas(device);
 
     return 0;
 }
@@ -163,7 +148,7 @@ static void engine_draw_frame(struct engine* engine) {
 
     long elapsedTime = clock() / (CLOCKS_PER_SEC / 1000);
 
-    canvas->drawColor(SK_ColorWHITE);
+    engine->skiaCanvas->drawColor(SK_ColorWHITE);
 
     // Setup a SkPaint for drawing our text
     SkPaint paint;
@@ -174,7 +159,7 @@ static void engine_draw_frame(struct engine* engine) {
     // Draw some text
     SkString text("Skia is Best!");
     SkScalar fontHeight = paint.getFontSpacing();
-    canvas->drawText(text.c_str(), text.size(), // text's data and length
+    engine->skiaCanvas->drawText(text.c_str(), text.size(), // text's data and length
          10, fontHeight,            // X and Y coordinates to place the text
          paint);                    // SkPaint to tell how to draw the text
 
@@ -188,12 +173,12 @@ static void engine_draw_frame(struct engine* engine) {
     {
     float x = (float)i / 99.0f;
     float offset = elapsedTime / 1000.0f;
-    canvas->drawLine(sin(x * M_PI + offset) * 800.0f, 0,   // first endpoint
+    engine->skiaCanvas->drawLine(sin(x * M_PI + offset) * 800.0f, 0,   // first endpoint
          cos(x * M_PI + offset) * 800.0f, 800, // second endpoint
          paint);                               // SkPapint to tell how to draw the line
     }
 
-    fContext->flush();
+    engine->skiaContext->flush();
     eglSwapBuffers(engine->display, engine->surface);
 }
 
@@ -221,12 +206,6 @@ static void engine_term_display(struct engine* engine) {
  * Process the next input event.
  */
 static int32_t engine_handle_input(struct android_app* app, AInputEvent* event) {
-    struct engine* engine = (struct engine*)app->userData;
-    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
-        engine->state.x = AMotionEvent_getX(event, 0);
-        engine->state.y = AMotionEvent_getY(event, 0);
-        return 1;
-    }
     return 0;
 }
 
@@ -237,10 +216,6 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd) {
     struct engine* engine = (struct engine*)app->userData;
     switch (cmd) {
         case APP_CMD_SAVE_STATE:
-            // The system has asked us to save our current state.  Do so.
-            engine->app->savedState = malloc(sizeof(struct saved_state));
-            *((struct saved_state*)engine->app->savedState) = engine->state;
-            engine->app->savedStateSize = sizeof(struct saved_state);
             break;
         case APP_CMD_INIT_WINDOW:
             // The window is being shown, get it ready.
@@ -254,23 +229,9 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd) {
             engine_term_display(engine);
             break;
         case APP_CMD_GAINED_FOCUS:
-            // When our app gains focus, we start monitoring the accelerometer.
-            if (engine->accelerometerSensor != NULL) {
-                ASensorEventQueue_enableSensor(engine->sensorEventQueue,
-                        engine->accelerometerSensor);
-                // We'd like to get 60 events per second (in us).
-                ASensorEventQueue_setEventRate(engine->sensorEventQueue,
-                        engine->accelerometerSensor, (1000L/60)*1000);
-            }
+            engine->animating = 1;
             break;
         case APP_CMD_LOST_FOCUS:
-            // When our app loses focus, we stop monitoring the accelerometer.
-            // This is to avoid consuming battery while not being used.
-            if (engine->accelerometerSensor != NULL) {
-                ASensorEventQueue_disableSensor(engine->sensorEventQueue,
-                        engine->accelerometerSensor);
-            }
-            // Also stop animating.
             engine->animating = 0;
             engine_draw_frame(engine);
             break;
@@ -295,8 +256,6 @@ void android_main(struct android_app* state) {
     engine.app = state;
 
     if (state->savedState != NULL) {
-        // We are starting with a previous saved state; restore from it.
-        engine.state = *(struct saved_state*)state->savedState;
     }
 
     // loop waiting for stuff to do.
@@ -326,12 +285,6 @@ void android_main(struct android_app* state) {
         }
 
         if (engine.animating) {
-            // Done with events; draw next animation frame.
-            engine.state.angle += .01f;
-            if (engine.state.angle > 1) {
-                engine.state.angle = 0;
-            }
-
             // Drawing is throttled to the screen update rate, so there
             // is no need to do timing here.
             engine_draw_frame(&engine);
