@@ -1,0 +1,10 @@
+Skia OpenGL ES Android sample.
+
+This is just a combination of:
+* Native Activity sample in Android NDK
+* Hello Skia sample in Skia source code
+* https://code.google.com/p/skia/source/browse/trunk/experimental/SkiaExamples/BaseExample.cpp
+
+See:
+https://sites.google.com/site/skiadocs/user-documentation/quick-start-guides/android
+https://groups.google.com/forum/#!topic/skia-discuss/c9vsrU0OWlE
