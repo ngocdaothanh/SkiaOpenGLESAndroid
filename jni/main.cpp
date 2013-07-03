@@ -1,5 +1,6 @@
 #include <EGL/egl.h>
 #include <GLES/gl.h>
+#include <GLES2/gl2.h>
 
 #include <android/log.h>
 #include <android_native_app_glue.h>
@@ -7,8 +8,6 @@
 #include <GrContext.h>
 #include <SkGpuDevice.h>
 #include <gl/GrGLInterface.h>
-#include <gl/GrGLDefines.h>
-#include <gl/GrGLUtil.h>
 
 #include <SkCanvas.h>
 #include <SkGraphics.h>
@@ -121,8 +120,9 @@ static int engine_init_display(struct engine* engine) {
     desc.fStencilBits = 8;
 
     GrGLint buffer;
-    // Alternative: glGetIntegerv(GL_FRAMEBUFFER_BINDING, &buffer);
-    GR_GL_GetIntegerv(fInterface, GR_GL_FRAMEBUFFER_BINDING, &buffer);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &buffer);
+    // Alternative:
+    // GR_GL_GetIntegerv(fInterface, GR_GL_FRAMEBUFFER_BINDING, &buffer);
     desc.fRenderTargetHandle = buffer;
 
     GrRenderTarget* renderTarget = engine->skiaContext->wrapBackendRenderTarget(desc);

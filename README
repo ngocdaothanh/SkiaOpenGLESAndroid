@@ -8,3 +8,12 @@ This is just a combination of:
 See:
 https://sites.google.com/site/skiadocs/user-documentation/quick-start-guides/android
 https://groups.google.com/forum/#!topic/skia-discuss/c9vsrU0OWlE
+
+jni/skia/libskia_android.so is compiled with BUILDTYPE=Release option (see the
+guide above):
+cd skia/source/code
+gclient sync
+cd trunk
+export ANDROID_SDK_ROOT=/path/to/android/sdk
+export TARGET_DEVICE=xoom
+./platform_tools/android/bin/android_make -d $TARGET_DEVICE BUILDTYPE=Release
