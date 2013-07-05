@@ -52,8 +52,15 @@ static int engine_init_display(struct engine* engine) {
         EGL_NONE
     };
 
-    const EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
-    const EGLint surfaceAttribs[] = {EGL_RENDER_BUFFER, EGL_BACK_BUFFER, EGL_NONE};
+    const EGLint contextAttribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+
+    const EGLint surfaceAttribs[] = {
+        EGL_RENDER_BUFFER, EGL_BACK_BUFFER,
+        EGL_NONE
+    };
 
     EGLint w, h, dummy, format;
     EGLint numConfigs;
@@ -81,7 +88,7 @@ static int engine_init_display(struct engine* engine) {
     surface = eglCreateWindowSurface(display, config, engine->app->window, surfaceAttribs);
     context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
 
-    if (eglMakeCurrent(display, surface, surface, context) == EGL_FALSE) {
+    if (!eglMakeCurrent(display, surface, surface, context)) {
         LOGW("Unable to eglMakeCurrent");
         return -1;
     }
@@ -99,10 +106,14 @@ static int engine_init_display(struct engine* engine) {
     engine->height  = h;
 
     // Initialize GL state.
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
-    glEnable(GL_CULL_FACE);
-    glShadeModel(GL_SMOOTH);
     glDisable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    glShadeModel(GL_SMOOTH);
+
+    // eglSwapBuffers should not automatically clear the screen
+    eglSurfaceAttrib(display, surface, EGL_SWAP_BEHAVIOR, EGL_BUFFER_PRESERVED);
 
     // Initialize Skia OpenGL ES
 
@@ -137,29 +148,22 @@ static int engine_init_display(struct engine* engine) {
     return 0;
 }
 
-/**
- * Just the current frame in the display.
- */
-static void engine_draw_frame(struct engine* engine) {
-    if (engine->display == NULL) {
-        // No display.
-        return;
-    }
+//------------------------------------------------------------------------------
 
-    long elapsedTime = clock() / (CLOCKS_PER_SEC / 1000);
-
-    engine->skiaCanvas->drawColor(SK_ColorWHITE);
+static void demo_hello_skia(SkCanvas* canvas, int w, int h) {
+    // Clear
+    canvas->drawColor(SK_ColorWHITE);
 
     // Setup a SkPaint for drawing our text
     SkPaint paint;
     paint.setColor(SK_ColorBLACK); // This is a solid black color for our text
     paint.setTextSize(SkIntToScalar(30)); // Sets the text size to 30 pixels
-    paint.setAntiAlias(true); // We turn on anti-aliasing so that the text to looks good.
+    paint.setAntiAlias(true); // We turn on anti-aliasing so that the text to looks good
 
     // Draw some text
     SkString text("Skia is Best!");
     SkScalar fontHeight = paint.getFontSpacing();
-    engine->skiaCanvas->drawText(text.c_str(), text.size(), // text's data and length
+    canvas->drawText(text.c_str(), text.size(), // text's data and length
          10, fontHeight,            // X and Y coordinates to place the text
          paint);                    // SkPaint to tell how to draw the text
 
@@ -169,14 +173,102 @@ static void engine_draw_frame(struct engine* engine) {
     paint.setStrokeWidth(SkIntToScalar(2)); // This makes the lines have a thickness of 2 pixels
 
     // Draw some interesting lines using trig functions
-    for (int i = 0; i < 100; i++)
-    {
-    float x = (float)i / 99.0f;
-    float offset = elapsedTime / 1000.0f;
-    engine->skiaCanvas->drawLine(sin(x * M_PI + offset) * 800.0f, 0,   // first endpoint
-         cos(x * M_PI + offset) * 800.0f, 800, // second endpoint
-         paint);                               // SkPapint to tell how to draw the line
+    long elapsedTime = clock() / (CLOCKS_PER_SEC / 1000);
+    for (int i = 0; i < 1; i++) {
+        float x = (float) i / 99.0f;
+        float offset = elapsedTime / 1000.0f;
+        canvas->drawLine(
+            sin(x * M_PI + offset) * w, 0,   // first endpoint
+            cos(x * M_PI + offset) * w, h, // second endpoint
+            paint);                               // SkPapint to tell how to draw the line
     }
+}
+
+//------------------------------------------------------------------------------
+// https://github.com/phoboslab/Ejecta/blob/master/index.js
+// https://github.com/3dseals/Ejecta-X/blob/master/project/android/assets/build/index.js
+
+struct Curve {
+  double  current;
+  double  inc;
+  SkColor color;
+};
+
+const int NCURVES = 70;
+Curve curves[NCURVES];
+
+static void initCurvesOnce() {
+    static bool initedCurves = false;
+    if (initedCurves) return;
+    initedCurves = true;
+
+    for (int i = 0; i < NCURVES; i++ ) {
+        Curve curve;
+        curve.current = ((double) rand() / RAND_MAX) * 1000;
+        curve.inc     = ((double) rand() / RAND_MAX) * 0.005 + 0.002;
+
+        int color   = rand();
+        int r       = SkColorGetR(color);
+        int g       = SkColorGetG(color);
+        int b       = SkColorGetB(color);
+        curve.color = SkColorSetRGB(r, g, b);
+
+        curves[i] = curve;
+    }
+}
+
+const int NP = 8;
+double p[] = {0,0, 0,0, 0,0, 0,0};
+
+static void demo_ejectax(SkCanvas* canvas, int w, int h) {
+    initCurvesOnce();
+
+    int w2 = w / 2;
+    int h2 = h / 2;
+
+    // Blur out
+    canvas->drawARGB(31, 0, 0, 0);
+
+    // Calculate curve positions and draw
+    for (int i = 0; i < NCURVES; i++) {
+        Curve curve = curves[i];
+        curve.current += curve.inc;
+        curves[i] = curve;
+
+        for (int j = 0; j < NP; j+=2) {
+            double a = sin(curve.current * (j+3) * 373 * 0.0001);
+            double b = sin(curve.current * (j+5) * 927 * 0.0002);
+            double c = sin(curve.current * (j+5) * 573 * 0.0001);
+
+            p[j] = (a * a * b + c * a + b) * w * c + w2;
+            p[j+1] = (a * b * b + c - a * b *c) * h2 + h2;
+        }
+
+        SkPath path;
+        path.moveTo(p[0], p[1]);
+        path.cubicTo(p[2], p[3], p[4], p[5], p[6], p[7]);
+
+        SkPaint paint;
+        paint.setStyle(SkPaint::kStroke_Style);
+        paint.setColor(curve.color);
+        paint.setAlpha(127);
+
+        paint.setDither(true);
+
+        canvas->drawPath(path, paint);
+    }
+}
+
+//------------------------------------------------------------------------------
+
+/**
+ * Just the current frame in the display.
+ */
+static void engine_draw_frame(struct engine* engine) {
+    if (engine->display == NULL) return;
+
+    //demo_hello_skia(engine->skiaCanvas, engine->width, engine->height);
+    demo_ejectax(engine->skiaCanvas, engine->width, engine->height);
 
     engine->skiaContext->flush();
     eglSwapBuffers(engine->display, engine->surface);
@@ -197,9 +289,9 @@ static void engine_term_display(struct engine* engine) {
         eglTerminate(engine->display);
     }
     engine->animating = 0;
-    engine->display = EGL_NO_DISPLAY;
-    engine->context = EGL_NO_CONTEXT;
-    engine->surface = EGL_NO_SURFACE;
+    engine->display   = EGL_NO_DISPLAY;
+    engine->context   = EGL_NO_CONTEXT;
+    engine->surface   = EGL_NO_SURFACE;
 }
 
 /**
@@ -250,15 +342,15 @@ void android_main(struct android_app* state) {
     app_dummy();
 
     memset(&engine, 0, sizeof(engine));
-    state->userData = &engine;
-    state->onAppCmd = engine_handle_cmd;
+    state->userData     = &engine;
+    state->onAppCmd     = engine_handle_cmd;
     state->onInputEvent = engine_handle_input;
     engine.app = state;
 
     if (state->savedState != NULL) {
     }
 
-    // loop waiting for stuff to do.
+    // Loop waiting for stuff to do.
     engine.animating = 1;
     while (1) {
         // Read all pending events.
