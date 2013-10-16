@@ -45,11 +45,18 @@ public:
     ~SkWriter32();
 
     // return the current offset (will always be a multiple of 4)
-    uint32_t bytesWritten() const { return fSize; }
-    // DEPRECATED: use byetsWritten instead
-    uint32_t  size() const { return this->bytesWritten(); }
+    size_t bytesWritten() const { return fSize; }
+    // DEPRECATED: use bytesWritten instead  TODO(mtklein): clean up
+    size_t size() const { return this->bytesWritten(); }
 
-    void      reset();
+    // Returns true if we've written only into the storage passed into constructor or reset.
+    // (You may be able to use this to avoid a call to flatten.)
+    bool wroteOnlyToStorage() const {
+        return fHead == &fExternalBlock && this->bytesWritten() <= fExternalBlock.fSizeOfBlock;
+    }
+
+    void reset();
+    void reset(void* storage, size_t size);
 
     // size MUST be multiple of 4
     uint32_t* reserve(size_t size) {
@@ -62,8 +69,6 @@ public:
         fSize += size;
         return block->alloc(size);
     }
-
-    void reset(void* storage, size_t size);
 
     bool writeBool(bool value) {
         this->writeInt(value);
@@ -107,6 +112,10 @@ public:
 
     void writeRect(const SkRect& rect) {
         *(SkRect*)this->reserve(sizeof(rect)) = rect;
+    }
+
+    void writeIRect(const SkIRect& rect) {
+        *(SkIRect*)this->reserve(sizeof(rect)) = rect;
     }
 
     void writeRRect(const SkRRect& rrect) {
@@ -163,7 +172,9 @@ public:
      *  Writes a string to the writer, which can be retrieved with
      *  SkReader32::readString().
      *  The length can be specified, or if -1 is passed, it will be computed by
-     *  calling strlen(). The length must be < 0xFFFF
+     *  calling strlen(). The length must be < max size_t.
+     *
+     *  If you write NULL, it will be read as "".
      */
     void writeString(const char* str, size_t len = (size_t)-1);
 
@@ -257,9 +268,9 @@ private:
     Block*      fHead;
     Block*      fTail;
     size_t      fMinSize;
-    uint32_t    fSize;
+    size_t      fSize;
     // sum of bytes written in all blocks *before* fTail
-    uint32_t    fWrittenBeforeLastBlock;
+    size_t      fWrittenBeforeLastBlock;
 
     bool isHeadExternallyAllocated() const {
         return fHead == &fExternalBlock;

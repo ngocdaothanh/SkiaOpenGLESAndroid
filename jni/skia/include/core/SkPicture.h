@@ -58,12 +58,6 @@ public:
     typedef bool (*InstallPixelRefProc)(const void* src, size_t length, SkBitmap* dst);
 
     /**
-     *  @Deprecated - use CreateFromStream instead.
-     *  Create an SkPicture from an SkStream.
-     */
-    SkPicture(SkStream*, bool*, InstallPixelRefProc);
-
-    /**
      *  Recreate a picture that was serialized into a stream.
      *  @param SkStream Serialized picture data.
      *  @param proc Function pointer for installing pixelrefs on SkBitmaps representing the
@@ -214,7 +208,16 @@ protected:
     // V10: add drawRRect, drawOval, clipRRect
     // V11: modify how readBitmap and writeBitmap store their info.
     // V12: add conics to SkPath, use new SkPathRef flattening
-    static const uint32_t PICTURE_VERSION = 12;
+    // V13: add flag to drawBitmapRectToRect
+    //      parameterize blurs by sigma rather than radius
+    // V14: Add flags word to PathRef serialization
+#ifndef DELETE_THIS_CODE_WHEN_SKPS_ARE_REBUILT_AT_V13_AND_ALL_OTHER_INSTANCES_TOO
+    static const uint32_t PRIOR_PRIOR_PICTURE_VERSION = 12;  // TODO: remove when .skps regenerated
+#endif
+#ifndef DELETE_THIS_CODE_WHEN_SKPS_ARE_REBUILT_AT_V14_AND_ALL_OTHER_INSTANCES_TOO
+    static const uint32_t PRIOR_PICTURE_VERSION2 = 13;  // TODO: remove when .skps regenerated
+#endif
+    static const uint32_t PICTURE_VERSION = 14;
 
     // fPlayback, fRecord, fWidth & fHeight are protected to allow derived classes to
     // install their own SkPicturePlayback-derived players,SkPictureRecord-derived

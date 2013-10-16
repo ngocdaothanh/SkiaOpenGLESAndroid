@@ -28,7 +28,9 @@ public:
      * this function returns src.  If the filter has no GPU implementation, it
      * will be processed in software and uploaded to the GPU.
      */
-    static bool GetInputResultGPU(SkImageFilter* filter, SkImageFilter::Proxy* proxy, const SkBitmap& src, SkBitmap* result);
+    static bool GetInputResultGPU(SkImageFilter* filter, SkImageFilter::Proxy* proxy,
+                                  const SkBitmap& src, const SkMatrix& ctm, SkBitmap* result,
+                                  SkIPoint* offset);
 };
 
 #endif

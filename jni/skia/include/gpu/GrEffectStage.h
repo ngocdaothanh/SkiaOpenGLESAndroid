@@ -20,14 +20,8 @@
 
 class GrEffectStage {
 public:
-    GrEffectStage() {
-        fCoordChangeMatrixSet = false;
-        fVertexAttribIndices[0] = -1;
-        fVertexAttribIndices[1] = -1;
-    }
-
     explicit GrEffectStage(const GrEffectRef* effectRef, int attrIndex0 = -1, int attrIndex1 = -1)
-    : fEffectRef(SkSafeRef(effectRef)) {
+    : fEffectRef(SkRef(effectRef)) {
         fCoordChangeMatrixSet = false;
         fVertexAttribIndices[0] = attrIndex0;
         fVertexAttribIndices[1] = attrIndex1;
@@ -37,23 +31,25 @@ public:
         *this = other;
     }
 
+    class DeferredStage;
+    // This constructor balances DeferredStage::saveFrom().
+    explicit GrEffectStage(const DeferredStage& deferredStage) {
+        deferredStage.restoreTo(this);
+    }
+
     GrEffectStage& operator= (const GrEffectStage& other) {
         fCoordChangeMatrixSet = other.fCoordChangeMatrixSet;
         if (other.fCoordChangeMatrixSet) {
             fCoordChangeMatrix = other.fCoordChangeMatrix;
         }
-        fEffectRef.reset(SkSafeRef(other.fEffectRef.get()));
+        fEffectRef.reset(SkRef(other.fEffectRef.get()));
         memcpy(fVertexAttribIndices, other.fVertexAttribIndices, sizeof(fVertexAttribIndices));
         return *this;
     }
 
     bool operator== (const GrEffectStage& other) const {
-        // first handle cases where one or the other has no effect
-        if (NULL == fEffectRef.get()) {
-            return NULL == other.fEffectRef.get();
-        } else if (NULL == other.fEffectRef.get()) {
-            return false;
-        }
+        SkASSERT(NULL != fEffectRef.get());
+        SkASSERT(NULL != other.fEffectRef.get());
 
         if (!(*this->getEffect())->isEqual(*other.getEffect())) {
             return false;
@@ -91,7 +87,7 @@ public:
     private:
         bool fCoordChangeMatrixSet;
         SkMatrix fCoordChangeMatrix;
-        GR_DEBUGCODE(mutable SkAutoTUnref<const GrEffectRef> fEffectRef;)
+        SkDEBUGCODE(mutable SkAutoTUnref<const GrEffectRef> fEffectRef;)
 
         friend class GrEffectStage;
     };
@@ -107,9 +103,9 @@ public:
         if (fCoordChangeMatrixSet) {
             savedCoordChange->fCoordChangeMatrix = fCoordChangeMatrix;
         }
-        GrAssert(NULL == savedCoordChange->fEffectRef.get());
-        GR_DEBUGCODE(GrSafeRef(fEffectRef.get());)
-        GR_DEBUGCODE(savedCoordChange->fEffectRef.reset(fEffectRef.get());)
+        SkASSERT(NULL == savedCoordChange->fEffectRef.get());
+        SkDEBUGCODE(SkRef(fEffectRef.get());)
+        SkDEBUGCODE(savedCoordChange->fEffectRef.reset(fEffectRef.get());)
     }
 
     /**
@@ -120,8 +116,8 @@ public:
         if (fCoordChangeMatrixSet) {
             fCoordChangeMatrix = savedCoordChange.fCoordChangeMatrix;
         }
-        GrAssert(savedCoordChange.fEffectRef.get() == fEffectRef);
-        GR_DEBUGCODE(savedCoordChange.fEffectRef.reset(NULL);)
+        SkASSERT(savedCoordChange.fEffectRef.get() == fEffectRef);
+        SkDEBUGCODE(savedCoordChange.fEffectRef.reset(NULL);)
     }
 
     /**
@@ -141,44 +137,33 @@ public:
         }
 
         void saveFrom(const GrEffectStage& stage) {
-            GrAssert(!fInitialized);
-            if (NULL != stage.fEffectRef.get()) {
-                stage.fEffectRef->get()->incDeferredRefCounts();
-                fEffect = stage.fEffectRef->get();
-                fCoordChangeMatrixSet = stage.fCoordChangeMatrixSet;
-                if (fCoordChangeMatrixSet) {
-                    fCoordChangeMatrix = stage.fCoordChangeMatrix;
-                }
-                fVertexAttribIndices[0] = stage.fVertexAttribIndices[0];
-                fVertexAttribIndices[1] = stage.fVertexAttribIndices[1];
+            SkASSERT(!fInitialized);
+            SkASSERT(NULL != stage.fEffectRef.get());
+            stage.fEffectRef->get()->incDeferredRefCounts();
+            fEffect = stage.fEffectRef->get();
+            fCoordChangeMatrixSet = stage.fCoordChangeMatrixSet;
+            if (fCoordChangeMatrixSet) {
+                fCoordChangeMatrix = stage.fCoordChangeMatrix;
             }
+            fVertexAttribIndices[0] = stage.fVertexAttribIndices[0];
+            fVertexAttribIndices[1] = stage.fVertexAttribIndices[1];
             SkDEBUGCODE(fInitialized = true;)
         }
 
-        void restoreTo(GrEffectStage* stage) {
-            GrAssert(fInitialized);
-            if (NULL != fEffect) {
-                stage->fEffectRef.reset(GrEffect::CreateEffectRef(fEffect));
-                stage->fCoordChangeMatrixSet = fCoordChangeMatrixSet;
-                if (fCoordChangeMatrixSet) {
-                    stage->fCoordChangeMatrix = fCoordChangeMatrix;
-                }
-                stage->fVertexAttribIndices[0] = fVertexAttribIndices[0];
-                stage->fVertexAttribIndices[1] = fVertexAttribIndices[1];
-            } else {
-                stage->fEffectRef.reset(NULL);
+        void restoreTo(GrEffectStage* stage) const {
+            SkASSERT(fInitialized);
+            stage->fEffectRef.reset(GrEffect::CreateEffectRef(fEffect));
+            stage->fCoordChangeMatrixSet = fCoordChangeMatrixSet;
+            if (fCoordChangeMatrixSet) {
+                stage->fCoordChangeMatrix = fCoordChangeMatrix;
             }
+            stage->fVertexAttribIndices[0] = fVertexAttribIndices[0];
+            stage->fVertexAttribIndices[1] = fVertexAttribIndices[1];
         }
 
         bool isEqual(const GrEffectStage& stage, bool ignoreCoordChange) const {
-            if (NULL == stage.fEffectRef.get()) {
-                return NULL == fEffect;
-            } else if (NULL == fEffect) {
-                return false;
-            }
-
-            if (fVertexAttribIndices[0] != stage.fVertexAttribIndices[0]
-                || fVertexAttribIndices[1] != stage.fVertexAttribIndices[1]) {
+            if (fVertexAttribIndices[0] != stage.fVertexAttribIndices[0] ||
+                fVertexAttribIndices[1] != stage.fVertexAttribIndices[1]) {
                 return false;
             }
 
@@ -221,18 +206,6 @@ public:
         } else {
             return SkMatrix::I();
         }
-    }
-
-    void reset() { fEffectRef.reset(NULL); }
-
-    const GrEffectRef* setEffect(const GrEffectRef* effect, int attr0 = -1, int attr1 = -1) {
-        fEffectRef.reset(SkSafeRef(effect));
-        fCoordChangeMatrixSet = false;
-
-        fVertexAttribIndices[0] = attr0;
-        fVertexAttribIndices[1] = attr1;
-
-        return effect;
     }
 
     const GrEffectRef* getEffect() const { return fEffectRef.get(); }

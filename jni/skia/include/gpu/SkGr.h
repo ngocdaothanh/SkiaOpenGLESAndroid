@@ -25,10 +25,6 @@
 #include "SkRegion.h"
 #include "SkClipStack.h"
 
-#if (GR_DEBUG && defined(SK_RELEASE)) || (GR_RELEASE && defined(SK_DEBUG))
-//    #error "inconsistent GR_DEBUG and SK_DEBUG"
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 // Sk to Gr Type conversions
 
@@ -85,7 +81,7 @@ public:
     // overrides
     virtual const GrKey* getKey();
     virtual GrMaskFormat getMaskFormat();
-    virtual bool getPackedGlyphBounds(GrGlyph::PackedID, GrIRect* bounds);
+    virtual bool getPackedGlyphBounds(GrGlyph::PackedID, SkIRect* bounds);
     virtual bool getPackedGlyphImage(GrGlyph::PackedID, int width, int height,
                                      int rowBytes, void* image);
     virtual bool getGlyphPath(uint16_t glyphID, SkPath*);

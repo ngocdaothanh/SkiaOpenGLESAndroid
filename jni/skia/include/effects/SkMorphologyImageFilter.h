@@ -14,7 +14,7 @@
 
 class SK_API SkMorphologyImageFilter : public SkImageFilter {
 public:
-    SkMorphologyImageFilter(int radiusX, int radiusY, SkImageFilter* input);
+    SkMorphologyImageFilter(int radiusX, int radiusY, SkImageFilter* input, const CropRect* cropRect);
 
 protected:
     SkMorphologyImageFilter(SkFlattenableReadBuffer& buffer);
@@ -32,13 +32,16 @@ private:
 
 class SK_API SkDilateImageFilter : public SkMorphologyImageFilter {
 public:
-    SkDilateImageFilter(int radiusX, int radiusY, SkImageFilter* input = NULL)
-    : INHERITED(radiusX, radiusY, input) {}
+    SkDilateImageFilter(int radiusX, int radiusY,
+                        SkImageFilter* input = NULL,
+                        const CropRect* cropRect = NULL)
+    : INHERITED(radiusX, radiusY, input, cropRect) {}
 
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
 #if SK_SUPPORT_GPU
-    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, SkBitmap* result) SK_OVERRIDE;
+    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
+                                SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
 #endif
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkDilateImageFilter)
@@ -52,13 +55,16 @@ private:
 
 class SK_API SkErodeImageFilter : public SkMorphologyImageFilter {
 public:
-    SkErodeImageFilter(int radiusX, int radiusY, SkImageFilter* input = NULL)
-    : INHERITED(radiusX, radiusY, input) {}
+    SkErodeImageFilter(int radiusX, int radiusY,
+                       SkImageFilter* input = NULL,
+                       const CropRect* cropRect = NULL)
+    : INHERITED(radiusX, radiusY, input, cropRect) {}
 
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
 #if SK_SUPPORT_GPU
-    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, SkBitmap* result) SK_OVERRIDE;
+    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
+                                SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
 #endif
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkErodeImageFilter)

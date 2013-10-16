@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2010 Google Inc.
  *
@@ -6,15 +5,13 @@
  * found in the LICENSE file.
  */
 
-
-
 #ifndef GrGlyph_DEFINED
 #define GrGlyph_DEFINED
 
 #include "GrRect.h"
 #include "SkPath.h"
 
-class GrAtlas;
+class GrPlot;
 
 /*  Need this to be quad-state:
     - complete w/ image
@@ -25,14 +22,14 @@ class GrAtlas;
 struct GrGlyph {
     typedef uint32_t PackedID;
 
-    GrAtlas*    fAtlas;
+    GrPlot*     fPlot;
     SkPath*     fPath;
     PackedID    fPackedID;
     GrIRect16   fBounds;
     GrIPoint16  fAtlasLocation;
 
-    void init(GrGlyph::PackedID packed, const GrIRect& bounds) {
-        fAtlas = NULL;
+    void init(GrGlyph::PackedID packed, const SkIRect& bounds) {
+        fPlot = NULL;
         fPath = NULL;
         fPackedID = packed;
         fBounds.set(bounds);

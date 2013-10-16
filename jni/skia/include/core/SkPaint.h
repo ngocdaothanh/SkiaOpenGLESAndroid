@@ -43,12 +43,23 @@ typedef const SkGlyph& (*SkDrawCacheProc)(SkGlyphCache*, const char**,
 
 typedef const SkGlyph& (*SkMeasureCacheProc)(SkGlyphCache*, const char**);
 
+#define kBicubicFilterBitmap_Flag kHighQualityFilterBitmap_Flag
+
 /** \class SkPaint
 
     The SkPaint class holds the style and color information about how to draw
     geometries, text and bitmaps.
 */
+
 class SK_API SkPaint {
+    enum {
+        // DEPRECATED -- use setFilterLevel instead
+        kFilterBitmap_Flag    = 0x02, // temporary flag
+        // DEPRECATED -- use setFilterLevel instead
+        kHighQualityFilterBitmap_Flag = 0x4000, // temporary flag
+        // DEPRECATED -- use setFilterLevel instead
+        kHighQualityDownsampleBitmap_Flag = 0x8000, // temporary flag
+    };
 public:
     SkPaint();
     SkPaint(const SkPaint& paint);
@@ -95,7 +106,6 @@ public:
     */
     enum Flags {
         kAntiAlias_Flag       = 0x01,   //!< mask to enable antialiasing
-        kFilterBitmap_Flag    = 0x02,   //!< mask to enable bitmap filtering
         kDither_Flag          = 0x04,   //!< mask to enable dithering
         kUnderlineText_Flag   = 0x08,   //!< mask to enable underline text
         kStrikeThruText_Flag  = 0x10,   //!< mask to enable strike-thru text
@@ -108,12 +118,10 @@ public:
         kAutoHinting_Flag     = 0x800,  //!< mask to force Freetype's autohinter
         kVerticalText_Flag    = 0x1000,
         kGenA8FromLCD_Flag    = 0x2000, // hack for GDI -- do not use if you can help it
-        kBicubicFilterBitmap_Flag = 0x4000, // temporary flag
-
         // when adding extra flags, note that the fFlags member is specified
         // with a bit-width and you'll have to expand it.
 
-        kAllFlags = 0x7FFF
+        kAllFlags = 0xFFFF
     };
 
     /** Return the paint's flags. Use the Flag enum to test flag values.
@@ -276,11 +284,41 @@ public:
     */
     void setDevKernText(bool devKernText);
 
-    bool isFilterBitmap() const {
-        return SkToBool(this->getFlags() & kFilterBitmap_Flag);
+    enum FilterLevel {
+        kNone_FilterLevel,
+        kLow_FilterLevel,
+        kMedium_FilterLevel,
+        kHigh_FilterLevel
+    };
+
+    /**
+     *  Return the filter level. This affects the quality (and performance) of
+     *  drawing scaled images.
+     */
+    FilterLevel getFilterLevel() const;
+
+    /**
+     *  Set the filter level. This affects the quality (and performance) of
+     *  drawing scaled images.
+     */
+    void setFilterLevel(FilterLevel);
+
+    /**
+     *  DEPRECATED: use setFilterLevel instead.
+     *  If the predicate is true, set the filterLevel to Low, else set it to
+     *  None.
+     */
+    void setFilterBitmap(bool doFilter) {
+        this->setFilterLevel(doFilter ? kLow_FilterLevel : kNone_FilterLevel);
     }
 
-    void setFilterBitmap(bool filterBitmap);
+    /**
+     *  DEPRECATED: call getFilterLevel() instead.
+     *  Returns true if getFilterLevel() returns anything other than None.
+     */
+    bool isFilterBitmap() const {
+        return kNone_FilterLevel != this->getFilterLevel();
+    }
 
     /** Styles apply to rect, oval, path, and text.
         Bitmaps are always drawn in "fill", and lines are always drawn in
@@ -679,20 +717,6 @@ public:
     */
     void setTextSkewX(SkScalar skewX);
 
-#ifdef SK_SUPPORT_HINTING_SCALE_FACTOR
-    /** Return the paint's scale factor used for correctly rendering
-        glyphs in high DPI mode without text subpixel positioning.
-        @return the scale factor used for rendering glyphs in high DPI mode.
-    */
-    SkScalar getHintingScaleFactor() const { return fHintingScaleFactor; }
-
-    /** Set the paint's scale factor used for correctly rendering
-        glyphs in high DPI mode without text subpixel positioning.
-        @param the scale factor used for rendering glyphs in high DPI mode.
-    */
-    void setHintingScaleFactor(SkScalar hintingScaleFactor);
-#endif
-
     /** Describes how to interpret the text parameters that are passed to paint
         methods like measureText() and getTextWidths().
     */
@@ -960,9 +984,6 @@ private:
     SkScalar        fTextSize;
     SkScalar        fTextScaleX;
     SkScalar        fTextSkewX;
-#ifdef SK_SUPPORT_HINTING_SCALE_FACTOR
-    SkScalar        fHintingScaleFactor;
-#endif
 
     SkPathEffect*   fPathEffect;
     SkShader*       fShader;

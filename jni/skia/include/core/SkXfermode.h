@@ -19,13 +19,16 @@ class GrTexture;
 class SkString;
 
 /** \class SkXfermode
-
-    SkXfermode is the base class for objects that are called to implement custom
-    "transfer-modes" in the drawing pipeline. The static function Create(Modes)
-    can be called to return an instance of any of the predefined subclasses as
-    specified in the Modes enum. When an SkXfermode is assigned to an SkPaint,
-    then objects drawn with that paint have the xfermode applied.
-*/
+ *
+ *  SkXfermode is the base class for objects that are called to implement custom
+ *  "transfer-modes" in the drawing pipeline. The static function Create(Modes)
+ *  can be called to return an instance of any of the predefined subclasses as
+ *  specified in the Modes enum. When an SkXfermode is assigned to an SkPaint,
+ *  then objects drawn with that paint have the xfermode applied.
+ *
+ *  All subclasses are required to be reentrant-safe : it must be legal to share
+ *  the same instance between several threads.
+ */
 class SK_API SkXfermode : public SkFlattenable {
 public:
     SK_DECLARE_INST_COUNT(SkXfermode)
@@ -237,6 +240,10 @@ private:
     enum {
         kModeCount = kLastMode + 1
     };
+
+    friend class SkGraphics;
+    static void Term();
+
     typedef SkFlattenable INHERITED;
 };
 
@@ -269,6 +276,10 @@ protected:
     // allow subclasses to update this after we unflatten
     void setProc(SkXfermodeProc proc) {
         fProc = proc;
+    }
+
+    SkXfermodeProc getProc() const {
+        return fProc;
     }
 
 private:

@@ -63,6 +63,14 @@
     #endif
 #endif
 
+#if !defined(SK_ATTRIBUTE)
+    #if defined(__clang__) || defined(__GNUC__)
+        #define SK_ATTRIBUTE(attr) __attribute__((attr))
+    #else
+        #define SK_ATTRIBUTE(attr)
+    #endif
+#endif
+
 #if !defined(SK_SUPPORT_GPU)
     #define SK_SUPPORT_GPU 1
 #endif
@@ -140,11 +148,21 @@
         #define WIN32_LEAN_AND_MEAN
         #define WIN32_IS_MEAN_WAS_LOCALLY_DEFINED
     #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+        #define NOMINMAX_WAS_LOCALLY_DEFINED
+    #endif
 
     #include <windows.h>
 
     #ifdef WIN32_IS_MEAN_WAS_LOCALLY_DEFINED
+        #undef WIN32_IS_MEAN_WAS_LOCALLY_DEFINED
         #undef WIN32_LEAN_AND_MEAN
+    #endif
+
+    #ifdef NOMINMAX_WAS_LOCALLY_DEFINED
+        #undef NOMINMAX_WAS_LOCALLY_DEFINED
+        #undef NOMINMAX
     #endif
 
     #ifndef SK_DEBUGBREAK
@@ -187,6 +205,14 @@
         #define SK_A32_SHIFT    24
     #endif
 #endif
+
+/**
+ * SkColor has well defined shift values, but SkPMColor is configurable. This
+ * macro is a convenience that returns true if the shift values are equal while
+ * ignoring the machine's endianness.
+ */
+#define SK_COLOR_MATCHES_PMCOLOR_BYTE_ORDER \
+    (SK_A32_SHIFT == 24 && SK_R32_SHIFT == 16 && SK_G32_SHIFT == 8 && SK_B32_SHIFT == 0)
 
 /**
  * SK_PMCOLOR_BYTE_ORDER can be used to query the byte order of SkPMColor at compile time. The
@@ -321,7 +347,7 @@
 #ifndef SK_OVERRIDE
     #if defined(_MSC_VER)
         #define SK_OVERRIDE override
-    #elif defined(__clang__) && !defined(SK_BUILD_FOR_IOS)
+    #elif defined(__clang__)
         // Clang defaults to C++03 and warns about using override. Squelch that. Intentionally no
         // push/pop here so all users of SK_OVERRIDE ignore the warning too. This is like passing
         // -Wno-c++11-extensions, except that GCC won't die (because it won't see this pragma).
@@ -336,10 +362,16 @@
                 #define SK_OVERRIDE override
             #endif
         #endif
-    #else
-        // Linux GCC ignores "__attribute__((override))" and rejects "override".
+    #endif
+    #ifndef SK_OVERRIDE
         #define SK_OVERRIDE
     #endif
+#endif
+
+//////////////////////////////////////////////////////////////////////
+
+#if !defined(SK_UNUSED)
+    #define SK_UNUSED SK_ATTRIBUTE(unused)
 #endif
 
 //////////////////////////////////////////////////////////////////////

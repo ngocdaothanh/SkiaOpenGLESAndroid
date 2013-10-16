@@ -137,7 +137,7 @@ static int engine_init_display(struct engine* engine) {
     desc.fRenderTargetHandle = buffer;
 
     GrRenderTarget* renderTarget = engine->skiaContext->wrapBackendRenderTarget(desc);
-    SkAutoTUnref<SkDevice> device(new SkGpuDevice(engine->skiaContext, renderTarget));
+    SkAutoTUnref<SkBaseDevice> device(new SkGpuDevice(engine->skiaContext, renderTarget));
 
     // Leaking fRenderTarget. Either wrap it in an SkAutoTUnref<> or unref it
     // after creating the device.
@@ -174,13 +174,13 @@ static void demo_hello_skia(SkCanvas* canvas, int w, int h) {
 
     // Draw some interesting lines using trig functions
     long elapsedTime = clock() / (CLOCKS_PER_SEC / 1000);
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 100; i++) {
         float x = (float) i / 99.0f;
         float offset = elapsedTime / 1000.0f;
         canvas->drawLine(
-            sin(x * M_PI + offset) * w, 0,   // first endpoint
-            cos(x * M_PI + offset) * w, h, // second endpoint
-            paint);                               // SkPapint to tell how to draw the line
+            sin(x * M_PI + offset) * w, 0,  // first endpoint
+            cos(x * M_PI + offset) * w, h,  // second endpoint
+            paint);                         // SkPapint to tell how to draw the line
     }
 }
 

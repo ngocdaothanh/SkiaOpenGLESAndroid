@@ -22,6 +22,7 @@ class SkAdvancedTypefaceMetrics;
 class SkWStream;
 
 typedef uint32_t SkFontID;
+/** Machine endian. */
 typedef uint32_t SkFontTableTag;
 
 /** \class SkTypeface
@@ -224,6 +225,30 @@ public:
      */
     int getUnitsPerEm() const;
 
+    struct LocalizedString {
+        SkString fString;
+        SkString fLanguage;
+    };
+    class LocalizedStrings : ::SkNoncopyable {
+    public:
+        virtual ~LocalizedStrings() { }
+        virtual bool next(LocalizedString* localizedString) = 0;
+        void unref() { SkDELETE(this); }
+    };
+    /**
+     *  Returns an iterator which will attempt to enumerate all of the
+     *  family names specified by the font.
+     *  It is the caller's responsibility to unref() the returned pointer.
+     */
+    LocalizedStrings* createFamilyNameIterator() const;
+
+    /**
+     *  Return the family name for this typeface. It will always be returned
+     *  encoded as UTF8, but the language of the name is whatever the host
+     *  platform chooses.
+     */
+    void getFamilyName(SkString* name) const;
+
     /**
      *  Return a stream for the contents of the font data, or NULL on failure.
      *  If ttcIndex is not null, it is set to the TrueTypeCollection index
@@ -231,7 +256,25 @@ public:
      *  collection.
      */
     SkStream* openStream(int* ttcIndex) const;
-    SkScalerContext* createScalerContext(const SkDescriptor*) const;
+
+    /**
+     *  Search within this typeface's family for a best match to the
+     *  specified style, and return a ref to that typeface. Note: the
+     *  returned object could be this, if it is the best match, or it
+     *  could be a different typeface. Either way, the caller must balance
+     *  this call with unref() on the returned object.
+     *
+     *  Will never return NULL.
+     */
+    SkTypeface* refMatchingStyle(Style) const;
+
+    /**
+     *  Return a scalercontext for the given descriptor. If this fails, then
+     *  if allowFailure is true, this returns NULL, else it returns a
+     *  dummy scalercontext that will not crash, but will draw nothing.
+     */
+    SkScalerContext* createScalerContext(const SkDescriptor*,
+                                         bool allowFailure = false) const;
 
     // PRIVATE / EXPERIMENTAL -- do not call
     void filterRec(SkScalerContextRec* rec) const {
@@ -265,13 +308,17 @@ protected:
 
     virtual int onCharsToGlyphs(const void* chars, Encoding, uint16_t glyphs[],
                                 int glyphCount) const;
-    virtual int onCountGlyphs() const;
+    virtual int onCountGlyphs() const = 0;
 
-    virtual int onGetUPEM() const;
+    virtual int onGetUPEM() const = 0;
 
-    virtual int onGetTableTags(SkFontTableTag tags[]) const;
+    virtual LocalizedStrings* onCreateFamilyNameIterator() const = 0;
+
+    virtual int onGetTableTags(SkFontTableTag tags[]) const = 0;
     virtual size_t onGetTableData(SkFontTableTag, size_t offset,
-                                  size_t length, void* data) const;
+                                  size_t length, void* data) const = 0;
+
+    virtual SkTypeface* onRefMatchingStyle(Style styleBits) const = 0;
 
 private:
     SkFontID    fUniqueID;

@@ -21,7 +21,8 @@ class SK_API SkXfermodeImageFilter : public SkImageFilter {
       */
 
 public:
-    SkXfermodeImageFilter(SkXfermode* mode, SkImageFilter* background, SkImageFilter* foreground = NULL);
+    SkXfermodeImageFilter(SkXfermode* mode, SkImageFilter* background,
+                          SkImageFilter* foreground = NULL, const CropRect* cropRect = NULL);
 
     virtual ~SkXfermodeImageFilter();
 
@@ -33,8 +34,9 @@ public:
                                SkBitmap* dst,
                                SkIPoint* offset) SK_OVERRIDE;
 #if SK_SUPPORT_GPU
-    virtual bool canFilterImageGPU() const SK_OVERRIDE { return true; }
-    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, SkBitmap* result) SK_OVERRIDE;
+    virtual bool canFilterImageGPU() const SK_OVERRIDE { return !cropRectIsSet(); }
+    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
+                                SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
 #endif
 
 protected:

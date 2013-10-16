@@ -17,7 +17,7 @@
     There must be a proxy installed before the proxycanvas can be used (i.e.
     before its virtual methods can be called).
  */
-class SkProxyCanvas : public SkCanvas {
+class SK_API SkProxyCanvas : public SkCanvas {
 public:
     SkProxyCanvas() : fProxy(NULL) {}
     SkProxyCanvas(SkCanvas* proxy);
@@ -54,7 +54,8 @@ public:
     virtual void drawBitmap(const SkBitmap& bitmap, SkScalar left, SkScalar top,
                             const SkPaint* paint = NULL) SK_OVERRIDE;
     virtual void drawBitmapRectToRect(const SkBitmap& bitmap, const SkRect* src,
-                                const SkRect& dst, const SkPaint* paint = NULL) SK_OVERRIDE;
+                                      const SkRect& dst, const SkPaint* paint,
+                                      DrawBitmapRectFlags flags) SK_OVERRIDE;
     virtual void drawBitmapMatrix(const SkBitmap& bitmap, const SkMatrix& m,
                                   const SkPaint* paint = NULL) SK_OVERRIDE;
     virtual void drawSprite(const SkBitmap& bitmap, int left, int top,

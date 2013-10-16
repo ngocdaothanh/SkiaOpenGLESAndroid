@@ -9,10 +9,10 @@
 #define SkThreadPool_DEFINED
 
 #include "SkCondVar.h"
+#include "SkRunnable.h"
 #include "SkTDArray.h"
 #include "SkTInternalLList.h"
 
-class SkRunnable;
 class SkThread;
 
 class SkThreadPool {
@@ -31,6 +31,11 @@ public:
      */
     void add(SkRunnable*);
 
+    /**
+     * Block until all added SkRunnables have completed.  Once called, calling add() is undefined.
+     */
+    void wait();
+
  private:
     struct LinkedRunnable {
         // Unowned pointer.
@@ -43,7 +48,7 @@ public:
     SkTInternalLList<LinkedRunnable>    fQueue;
     SkCondVar                           fReady;
     SkTDArray<SkThread*>                fThreads;
-    bool                            fDone;
+    bool                                fDone;
 
     static void Loop(void*);  // Static because we pass in this.
 };

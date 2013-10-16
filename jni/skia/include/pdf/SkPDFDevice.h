@@ -10,15 +10,17 @@
 #ifndef SkPDFDevice_DEFINED
 #define SkPDFDevice_DEFINED
 
+#include "SkBitmapDevice.h"
+#include "SkBitmap.h"
 #include "SkCanvas.h"
-#include "SkDevice.h"
 #include "SkPaint.h"
 #include "SkPath.h"
+#include "SkPicture.h"
 #include "SkRect.h"
 #include "SkRefCnt.h"
 #include "SkStream.h"
 #include "SkTDArray.h"
-#include "SkTScopedPtr.h"
+#include "SkTemplates.h"
 
 class SkPDFArray;
 class SkPDFDevice;
@@ -28,6 +30,7 @@ class SkPDFFormXObject;
 class SkPDFGlyphSetMap;
 class SkPDFGraphicState;
 class SkPDFObject;
+class SkPDFResourceDict;
 class SkPDFShader;
 class SkPDFStream;
 template <typename T> class SkTSet;
@@ -37,13 +40,11 @@ struct ContentEntry;
 struct GraphicStateEntry;
 struct NamedDestination;
 
-typedef bool (*EncodeToDCTStream)(SkWStream* stream, const SkBitmap& bitmap, const SkIRect& rect);
-
 /** \class SkPDFDevice
 
     The drawing context for the PDF backend.
 */
-class SkPDFDevice : public SkDevice {
+class SkPDFDevice : public SkBitmapDevice {
 public:
     /** Create a PDF drawing context with the given width and height.
      *  72 points/in means letter paper is 612x792.
@@ -63,7 +64,7 @@ public:
      *         inverse scale+translate to accommodate the one that SkPDFDevice
      *         always does.
      */
-    // TODO(vandebo): The sizes should be SkSize and not SkISize.
+    // Deprecated, please use SkDocument::CreatePdf() instead.
     SK_API SkPDFDevice(const SkISize& pageSize, const SkISize& contentSize,
                        const SkMatrix& initialTransform);
     SK_API virtual ~SkPDFDevice();
@@ -87,9 +88,9 @@ public:
                           bool pathIsMutable) SK_OVERRIDE;
     virtual void drawBitmapRect(const SkDraw& draw, const SkBitmap& bitmap,
                                 const SkRect* src, const SkRect& dst,
-                                const SkPaint& paint) SK_OVERRIDE;
+                                const SkPaint& paint,
+                                SkCanvas::DrawBitmapRectFlags flags) SK_OVERRIDE;
     virtual void drawBitmap(const SkDraw&, const SkBitmap& bitmap,
-                            const SkIRect* srcRectOrNull,
                             const SkMatrix& matrix, const SkPaint&) SK_OVERRIDE;
     virtual void drawSprite(const SkDraw&, const SkBitmap& bitmap, int x, int y,
                             const SkPaint& paint) SK_OVERRIDE;
@@ -106,7 +107,7 @@ public:
                               const SkPoint texs[], const SkColor colors[],
                               SkXfermode* xmode, const uint16_t indices[],
                               int indexCount, const SkPaint& paint) SK_OVERRIDE;
-    virtual void drawDevice(const SkDraw&, SkDevice*, int x, int y,
+    virtual void drawDevice(const SkDraw&, SkBaseDevice*, int x, int y,
                             const SkPaint&) SK_OVERRIDE;
 
     virtual void onAttachToCanvas(SkCanvas* canvas) SK_OVERRIDE;
@@ -139,7 +140,7 @@ public:
      *         encoding and decoding might not be worth the space savings,
      *         if any at all.
      */
-    void setDCTEncoder(EncodeToDCTStream encoder) {
+    void setDCTEncoder(SkPicture::EncodeBitmap encoder) {
         fEncoder = encoder;
     }
 
@@ -147,23 +148,7 @@ public:
 
     /** Returns the resource dictionary for this device.
      */
-    SK_API SkPDFDict* getResourceDict();
-
-    /** Get the list of resources (PDF objects) used on this page.
-     *  This method will add to newResourceObjects any objects that this method
-     *  depends on, but not already in knownResourceObjects. This might operate
-     *  recursively so if this object depends on another object and that object
-     *  depends on two more, all three objects will be added.
-     *
-     *  @param knownResourceObjects  The set of resources to be ignored.
-     *  @param newResourceObjects  The set to append dependant resources to.
-     *  @param recursive    If recursive is true, get the resources of the
-     *                      device's resources recursively. (Useful for adding
-     *                      objects to the catalog.)
-     */
-    SK_API void getResources(const SkTSet<SkPDFObject*>& knownResourceObjects,
-                             SkTSet<SkPDFObject*>* newResourceObjects,
-                             bool recursive) const;
+    SK_API SkPDFResourceDict* getResourceDict();
 
     /** Get the fonts used on this device.
      */
@@ -223,7 +208,7 @@ private:
     SkClipStack fExistingClipStack;
     SkRegion fExistingClipRegion;
     SkPDFArray* fAnnotations;
-    SkPDFDict* fResourceDict;
+    SkPDFResourceDict* fResourceDict;
     SkTDArray<NamedDestination*> fNamedDestinations;
 
     SkTDArray<SkPDFGraphicState*> fGraphicStateResources;
@@ -231,32 +216,32 @@ private:
     SkTDArray<SkPDFFont*> fFontResources;
     SkTDArray<SkPDFObject*> fShaderResources;
 
-    SkTScopedPtr<ContentEntry> fContentEntries;
+    SkAutoTDelete<ContentEntry> fContentEntries;
     ContentEntry* fLastContentEntry;
-    SkTScopedPtr<ContentEntry> fMarginContentEntries;
+    SkAutoTDelete<ContentEntry> fMarginContentEntries;
     ContentEntry* fLastMarginContentEntry;
     DrawingArea fDrawingArea;
 
     const SkClipStack* fClipStack;
 
     // Accessor and setter functions based on the current DrawingArea.
-    SkTScopedPtr<ContentEntry>* getContentEntries();
+    SkAutoTDelete<ContentEntry>* getContentEntries();
     ContentEntry* getLastContentEntry();
     void setLastContentEntry(ContentEntry* contentEntry);
 
     // Glyph ids used for each font on this device.
-    SkTScopedPtr<SkPDFGlyphSetMap> fFontGlyphUsage;
+    SkAutoTDelete<SkPDFGlyphSetMap> fFontGlyphUsage;
 
-    EncodeToDCTStream fEncoder;
+    SkPicture::EncodeBitmap fEncoder;
 
     SkPDFDevice(const SkISize& layerSize, const SkClipStack& existingClipStack,
                 const SkRegion& existingClipRegion);
 
-    // override from SkDevice
-    virtual SkDevice* onCreateCompatibleDevice(SkBitmap::Config config,
-                                               int width, int height,
-                                               bool isOpaque,
-                                               Usage usage) SK_OVERRIDE;
+    // override from SkBaseDevice
+    virtual SkBaseDevice* onCreateCompatibleDevice(SkBitmap::Config config,
+                                                   int width, int height,
+                                                   bool isOpaque,
+                                                   Usage usage) SK_OVERRIDE;
 
     void init();
     void cleanUp(bool clearFontUsage);
@@ -309,6 +294,11 @@ private:
      */
     void copyContentEntriesToData(ContentEntry* entry, SkWStream* data) const;
 
+#ifdef SK_PDF_USE_PATHOPS
+    bool handleInversePath(const SkDraw& d, const SkPath& origPath,
+                           const SkPaint& paint, bool pathIsMutable,
+                           const SkMatrix* prePathMatrix = NULL);
+#endif
     bool handleRectAnnotation(const SkRect& r, const SkMatrix& matrix,
                               const SkPaint& paint);
     bool handlePointAnnotation(const SkPoint* points, size_t count,
@@ -321,7 +311,12 @@ private:
     void defineNamedDestination(SkData* nameData, const SkPoint& point,
                                 const SkMatrix& matrix);
 
-    typedef SkDevice INHERITED;
+    typedef SkBitmapDevice INHERITED;
+
+    // TODO(edisonn): Only SkDocument_PDF and SkPDFImageShader should be able to create
+    // an SkPDFDevice
+    //friend class SkDocument_PDF;
+    //friend class SkPDFImageShader;
 };
 
 #endif
