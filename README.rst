@@ -1,18 +1,20 @@
+.. image:: screenshot.png
+
 Skia OpenGL ES 2 Android sample.
 
 This is just a combination of:
 
 * Native Activity sample in Android NDK
-* Hello Skia sample in Skia source code
-* `Ejecta sample <https://github.com/phoboslab/Ejecta/blob/master/index.js>`_ (see normal_browser.html)
+* `Hello World <https://skia.googlesource.com/skia/+/master/example/>`_ sample in Skia source code
+* `Ejecta sample <https://github.com/phoboslab/Ejecta/blob/master/index.js>`_
+  (see `normal_browser.html <https://github.com/ngocdaothanh/SkiaOpenGLESAndroid/blob/master/normal_browser.html>`_ or `JSFiddle <https://jsfiddle.net/to9fo0r8/1/>`_)
 
 See also:
 
-* https://sites.google.com/site/skiadocs/user-documentation/quick-start-guides/android
+* https://skia.org/user/build
 * https://groups.google.com/forum/#!topic/skia-discuss/c9vsrU0OWlE
-* https://code.google.com/p/skia/source/browse/trunk/experimental/SkiaExamples/BaseExample.cpp
 
-jni/skia/libskia_android.so is compiled with BUILDTYPE=Release option (see the guide above):
+``jni/skia/libskia_android.so`` is compiled with ``BUILDTYPE=Release`` option (see the guide above):
 
 ::
 
